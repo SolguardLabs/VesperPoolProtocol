@@ -1,0 +1,4 @@
+titanoboa>=0.2.8
+vyper>=0.4.3,<0.5
+pytest>=9.0
+ruff>=0.15

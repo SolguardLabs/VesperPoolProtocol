@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Compile Vyper",
+      "type": "shell",
+      "command": "python scripts/check_contracts.py",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test",
+      "type": "shell",
+      "command": "python -m pytest -q",
+      "problemMatcher": []
+    },
+    {
+      "label": "CI",
+      "type": "shell",
+      "command": "python scripts/check_contracts.py && python -m ruff check tests scripts && python -m pytest -q",
+      "problemMatcher": []
+    }
+  ]
+}
