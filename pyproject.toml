@@ -1,18 +1,18 @@
 [project]
 name = "vesper-pool-protocol"
-version = "0.1.0"
-description = "Low-volatility Vyper AMM protocol review target"
+version = "1.0.0"
+description = "Two-asset Vyper AMM with reserve accounting and peg stress observability"
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-  "titanoboa>=0.2.8",
-  "vyper>=0.4.3,<0.5",
+  "titanoboa==0.2.8",
+  "vyper==0.4.3",
 ]
 
 [project.optional-dependencies]
 dev = [
-  "pytest>=9.0",
-  "ruff>=0.15",
+  "pytest==9.1.1",
+  "ruff==0.17.1",
 ]
 
 [tool.pytest.ini_options]

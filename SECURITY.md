@@ -1,71 +1,34 @@
-# Security Policy
+# Política de seguridad de VesperPoolProtocol
 
-## Modelo de Seguridad
+## Supuestos y límites
 
-Vesper Pool Protocol asume que cada pool contiene dos activos con baja volatilidad relativa.
-Los contratos están diseñados para tokens ERC-20 estándar sin fee-on-transfer, hooks ni rebases.
+El pool está diseñado para dos ERC-20 estándar, sin rebases, comisiones de transferencia ni hooks. Las reservas se expresan en unidades mínimas y el modelo presupone precisión compatible entre ambos activos. El oráculo local usa precios 1e18 y heartbeat configurado; una cotización caducada no debe utilizarse para la vista de estrés.
 
-Roles principales:
-
-- `owner`: administra parámetros, pausas y receptor de fees.
-- `governor`: gestiona parámetros operativos en `VesperParameterStore`.
-- `keeper`: registra snapshots en `VesperAccountingLedger`.
-- `reporter`: publica observaciones en `VesperPegOracle`.
-
-En despliegues de producción, estos roles deberían estar separados en multisigs o timelocks.
-
-## Invariantes Esperadas
-
-- Las reservas internas deben reconciliar con balances físicos tras `sync`.
-- Las fees de protocolo se excluyen de reservas activas.
-- Las LP shares representan una participación proporcional de reservas activas.
-- Los swaps deben respetar `min_out`.
-- Los retiros deben respetar límites de slippage indicados por el usuario.
-- El pool no debe transferir fondos a direcciones cero.
-- Las operaciones mutables principales están protegidas contra reentrada.
-
-## Validación Automatizada
-
-La validación local ejecuta:
-
-```bash
-python scripts/check_contracts.py
-python -m ruff check tests scripts
-python -m pytest -q
+```mermaid
+flowchart TD
+    A[Solicitud] --> B{Pool activo y parámetros}
+    B -->|admite| C{Límites de importe y deslizamiento}
+    B -->|rechaza| X[Reversión]
+    C -->|admite| D[Estado de reservas]
+    C -->|rechaza| X
+    D --> E[Transferencias y eventos]
+    E --> F[Lecturas y snapshots]
 ```
 
-`scripts/check_contracts.py` compila todos los archivos Vyper en `src/`.
+Las funciones mutables principales aplican protección contra reentrada y comprueban destinatario e importes. El router impone deadlines y pools confiables. La política de riesgo y las lentes publican parámetros e indicadores, pero no sustituyen controles ejecutados por el pool.
 
-## Alcance de Revisión
+## Invariantes de revisión
 
-Dentro de alcance:
+- `reserva activa = reserva registrada − comisión de protocolo` por token.
+- Las shares LP emitidas y quemadas corresponden a cambios admitidos de liquidez.
+- Un swap respeta la salida mínima declarada por el usuario.
+- Una retirada respeta el máximo de shares y mínimos de activos.
+- Los balances físicos y las reservas pueden reconciliarse tras `sync`.
+- Un snapshot conserva época, suministro, reservas, fees, invariante y timestamp.
+- Las vistas de estrés no mutan almacenamiento ni autorizan movimientos.
 
-- Contratos Vyper en `src/`.
-- Tests Python en `tests/`.
-- Scripts de compilación y CI.
-- Accounting de reservas, LP shares, fees y retiros.
+La reconciliación de saldos agregados no prueba por sí sola que cada transición económica individual sea correcta. Los cambios en el invariante, emisión LP o retiros requieren pruebas de rutas distintas, redondeos y activos sesgados.
 
-Fuera de alcance:
+## Avisos privados
 
-- Tokens con comportamiento no estándar.
-- Oracles externos de producción.
-- Integraciones cross-chain.
-- Frontends o indexadores externos.
-
-## Gestión de Dependencias
-
-Dependabot revisa dependencias de Python y GitHub Actions semanalmente. Cualquier actualización
-de Vyper o titanoboa debe acompañarse de compilación completa y ejecución de la suite.
-
-## Reportes
-
-Los reportes internos deben incluir:
-
-- Resumen y severidad.
-- Componente afectado.
-- Impacto económico.
-- Pasos de reproducción.
-- Mitigación propuesta.
-- Tests de regresión recomendados.
-
-No incluir material sensible en issues públicos ni documentación de usuario.
+Use el canal privado de avisos de seguridad de GitHub si está habilitado. Incluya commit, parámetros, entradas mínimas, resultado esperado/observado, impacto y reproducción local. No publique detalles sensibles ni utilice fondos o sistemas ajenos para una demostración.

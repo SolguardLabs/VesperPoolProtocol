@@ -1,132 +1,58 @@
-# Vesper Pool Protocol
+# VesperPoolProtocol
 
-![banner](./assets/banner.png)
+![VesperPoolProtocol — Solguard Labs](assets/banner.png)
 
-Vesper Pool Protocol es una implementación en Vyper de un AMM para pares de baja volatilidad.
-El pool mantiene dos activos correlacionados, LP shares ERC-20 internas, swaps con fee,
-retiros balanceados y retiros por cesta objetivo.
-
-El repositorio está preparado como objetivo de revisión profesional: contratos modulares,
-periphery operativo, vistas de monitorización, oracle de peg local y tests Python contra despliegues
-reales con titanoboa.
+AMM de dos activos correlacionados implementado en Vyper 0.4.3. El pool conserva reservas activas y comisiones de protocolo por separado, emite participaciones LP y permite swaps, aportaciones y retiros. El repositorio incluye periphery, oráculo local, registro de parámetros, contabilidad y monitorización reproducible. No identifica fondos o despliegues de red.
 
 ## Arquitectura
 
-```text
-                         +------------------+
-                         | VesperPegOracle  |
-                         +---------+--------+
-                                   |
-+----------------+       +---------v---------+       +------------------+
-| VesperRouter   |------>| VesperPool        |<------| VesperPoolLens   |
-+----------------+       +---------+---------+       +------------------+
-                                  |
-        +-------------------------+--------------------------+
-        |                         |                          |
-        v                         v                          v
-VesperRiskPolicy        VesperParameterStore       VesperAccountingLedger
+```mermaid
+flowchart LR
+    U[LP y operador] --> R[VesperRouter]
+    R --> P[VesperPool]
+    P --> L[Participaciones LP]
+    P --> A[Reservas y comisiones]
+    O[VesperPegOracle] --> M[VesperPoolMonitor]
+    P --> M
+    P --> S[VesperScenarioLens]
+    O --> S
+    G[VesperParameterStore] --> C[Política operativa]
+    P --> D[VesperAccountingLedger]
 ```
 
-- `VesperPool` ejecuta swaps, emisión de LP shares, retiro balanceado, retiro por cesta,
-  accounting de fees y sincronización de reservas.
-- `VesperRouter` ofrece flujos de usuario con deadlines y lista de pools confiables.
-- `VesperPoolLens` y `VesperPoolMonitor` agregan vistas para frontends, keepers y auditoría.
-- `VesperPegOracle` mantiene precios 1e18 y estado de frescura de activos correlacionados.
-- `VesperPoolRegistry`, `VesperParameterStore` y `VesperAccountingLedger` cubren registro,
-  gobierno operativo y snapshots contables.
-- `VesperMockERC20` se usa solamente para fixtures y despliegues locales.
+`VesperPool` ejecuta la contabilidad y las transferencias. `VesperRouter` añade deadlines y lista de pools confiables. `VesperPoolLens`, `VesperPoolMonitor` y la nueva `VesperScenarioLens` son vistas: no autorizan ni ejecutan movimientos. El oráculo publica observaciones con heartbeat; el ledger guarda snapshots por época.
 
-## Requisitos
+## Modelo económico
 
-- Python 3.11 o superior.
-- Vyper `0.4.3`.
-- titanoboa `0.2.8` o superior.
+El invariante de dos reservas activas `x`, `y` usa `s=x+y`, media armónica `h=floor(2xy/s)`, bonificación `b=floor(h×amp/1000)` y dispersión `q=floor((x−y)²/s)`. Si `b>q`, `D=s+b−q`; en otro caso `D=s`. Los swaps resuelven la reserva destino mediante una búsqueda acotada. La participación LP depende de `D` y del suministro de shares. Las comisiones de protocolo se excluyen de reservas activas.
 
-## Inicio Rápido
+Para `x=y=1 000 000` y `amp=800`, `s=2 000 000`, `h=1 000 000`, `b=800 000`, `q=0` y `D=2 800 000` en las mismas unidades. Consulte [el modelo económico](docs/modelo-economico.md) para redondeos, comisiones y métricas.
+
+## Inicio local
+
+Requiere Python 3.12, Vyper 0.4.3 y titanoboa 0.2.8. Las versiones de prueba están fijadas en `requirements.txt`.
 
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 python -m pip install -r requirements.txt
 python scripts/check_contracts.py
+python -m ruff check tests scripts
 python -m pytest -q
 ```
 
-En Windows PowerShell:
+En PowerShell, active con `.\.venv\Scripts\Activate.ps1` o invoque directamente `.\.venv\Scripts\python.exe`. `bash scripts/ci.sh` reproduce compilación, estilo y pruebas en un entorno Unix.
 
-```powershell
-python -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
-python scripts/check_contracts.py
-python -m pytest -q
-```
+## Escenarios de riesgo
 
-## Comandos
+`VesperScenarioLens.scenario(pool, oracle, withdraw0, withdraw1, shock0Bps, shock1Bps)` devuelve reservas restantes, valor antes/después, caída relativa, concentración y fecha de la observación más antigua. Los shocks son caídas de precio en puntos básicos, de 0 a 10 000. La función exige precios válidos y frescos; es una sensibilidad contable, no una simulación de ejecución ni un control de admisión.
 
-```bash
-bash scripts/tests.sh
-bash scripts/ci.sh
-```
+## Documentación
 
-```powershell
-.\scripts\tests.ps1
-.\scripts\ci.ps1
-```
+- [Arquitectura y flujos](docs/arquitectura.md)
+- [Invariante, comisiones y estrés](docs/modelo-economico.md)
+- [Operación y validación](docs/operacion.md)
+- [Controles de seguridad](docs/controles-seguridad.md)
+- [Política de seguridad](SECURITY.md)
 
-## Flujo Operativo
-
-1. Los LPs aprueban ambos tokens y llaman a `addLiquidity`.
-2. El pool emite LP shares internas contra el invariant actual.
-3. Los usuarios intercambian uno de los activos con `swap`.
-4. La fee de swap queda en reservas; la parte de protocolo se separa en accounting.
-5. Los LPs pueden retirar proporcionalmente con `removeLiquidity`.
-6. Los LPs pueden solicitar una cesta específica con `removeLiquidityImbalanced`.
-7. Los operadores reclaman fees de protocolo mediante `claimProtocolFees`.
-8. Keepers y frontends leen estado mediante lens, monitor y ledger.
-
-## Tests
-
-La suite cubre:
-
-- Swaps y quoting.
-- Emisión de LP shares.
-- Retiros balanceados.
-- Retiros por cesta objetivo.
-- Accounting y claim de fees de protocolo.
-- Flujos por router.
-- Vistas de lens y oracle.
-
-Ejecutar:
-
-```bash
-python -m pytest -q
-```
-
-## Estructura
-
-```text
-src/
-  accounting/
-  core/
-  governance/
-  interfaces/
-  monitoring/
-  oracle/
-  periphery/
-  policy/
-  tokens/
-tests/
-  integration/
-  unit/
-scripts/
-```
-
-## Estado
-
-Este repositorio es un entorno autocontenido de revision de protocolo. No depende de servicios
-externos ni de RPC publico para compilar o ejecutar tests.
-
-## Licencia
-
-MIT.
+La rama `production`, el tag anotado `v1.0.0` y el release se verifican contra el mismo commit de `main`. La publicación no implica un despliegue en red ni una auditoría externa.
