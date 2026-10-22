@@ -26,7 +26,7 @@ flowchart LR
 
 El invariante de dos reservas activas `x`, `y` usa `s=x+y`, media armónica `h=floor(2xy/s)`, bonificación `b=floor(h×amp/1000)` y dispersión `q=floor((x−y)²/s)`. Si `b>q`, `D=s+b−q`; en otro caso `D=s`. Los swaps resuelven la reserva destino mediante una búsqueda acotada. La participación LP depende de `D` y del suministro de shares. Las comisiones de protocolo se excluyen de reservas activas.
 
-Para `x=y=1 000 000` y `amp=800`, `s=2 000 000`, `h=1 000 000`, `b=800 000`, `q=0` y `D=2 800 000` en las mismas unidades. Consulte [el modelo económico](docs/modelo-economico.md) para redondeos, comisiones y métricas.
+Para `x=y=1 000 000` y `amp=800`, `s=2 000 000`, `h=1 000 000`, `b=800 000`, `q=0` y `D=2 800 000` en las mismas unidades. En retiros por cesta, el coste de shares combina la caída de `D`, la distancia frente a una cesta proporcional y la profundidad armónica. Consulte [el modelo económico](docs/modelo-economico.md) para redondeos, comisiones y métricas.
 
 ## Inicio local
 
@@ -54,5 +54,6 @@ En PowerShell, active con `.\.venv\Scripts\Activate.ps1` o invoque directamente 
 - [Operación y validación](docs/operacion.md)
 - [Controles de seguridad](docs/controles-seguridad.md)
 - [Política de seguridad](SECURITY.md)
+- [Historial de cambios](CHANGELOG.md)
 
-La rama `production`, el tag anotado `v1.0.0` y el release se verifican contra el mismo commit de `main`. La publicación no implica un despliegue en red ni una auditoría externa.
+La rama `production`, el tag anotado `v2.0.0` y el release se verifican contra el mismo commit de `main`. La publicación no implica un despliegue en red ni una auditoría externa.

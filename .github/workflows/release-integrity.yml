@@ -24,7 +24,9 @@ jobs:
           git fetch origin main production --tags
           main=$(git rev-parse origin/main)
           production=$(git rev-parse origin/production)
-          tag=$(git rev-parse 'v1.0.0^{}')
           test "$main" = "$production"
-          test "$main" = "$tag"
-          python -c 'import tomllib; assert tomllib.load(open("pyproject.toml", "rb"))["project"]["version"] == "1.0.0"'
+          if [[ "$GITHUB_REF_TYPE" == "tag" || "$GITHUB_EVENT_NAME" == "release" ]]; then
+            tag=$(git rev-parse 'v2.0.0^{}')
+            test "$main" = "$tag"
+          fi
+          python -c 'import tomllib; assert tomllib.load(open("pyproject.toml", "rb"))["project"]["version"] == "2.0.0"'

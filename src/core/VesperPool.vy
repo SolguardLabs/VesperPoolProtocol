@@ -3,10 +3,8 @@
 """
 Vesper Pool Protocol
 
-Two-asset low-volatility pool with internal LP shares, fee accounting,
-balanced redemptions and imbalanced redemptions. The invariant is intentionally
-compact so auditors can reason about accounting without needing a full Curve
-implementation.
+Two-asset low-volatility pool with amplified reserve pricing, internal LP
+shares, segregated protocol fees and balance-aware redemptions.
 """
 
 interface ERC20:
@@ -341,6 +339,15 @@ def _quote_add_liquidity(_amount0: uint256, _amount1: uint256) -> uint256:
 
 @internal
 @pure
+def _liquidity_quality(x: uint256, y: uint256, d: uint256) -> uint256:
+    if x == 0 or y == 0 or d == 0:
+        return 0
+    harmonic: uint256 = 2 * x * y // (x + y)
+    return harmonic * BPS // d
+
+
+@internal
+@pure
 def _withdrawal_penalty_from(
     old0: uint256,
     old1: uint256,
@@ -370,7 +377,12 @@ def _withdrawal_penalty_from(
         diff1 = ideal1 - new1
 
     penalty_value: uint256 = (diff0 + diff1) * penalty_bps // BPS
-    return penalty_value * supply // old_d
+    penalty_shares: uint256 = penalty_value * supply // old_d
+    quality_before: uint256 = self._liquidity_quality(old0, old1, old_d)
+    quality_after: uint256 = self._liquidity_quality(new0, new1, new_d)
+    if quality_before > 0 and quality_after < quality_before:
+        return penalty_shares * quality_after // quality_before
+    return penalty_shares
 
 
 @internal
@@ -570,36 +582,16 @@ def removeLiquidityImbalanced(
     active1: uint256 = self._active1()
     assert _amount0 < active0 and _amount1 < active1, "LIQUIDITY"
 
-    old_d: uint256 = self._compute_invariant(active0, active1, self.amp)
-    new0: uint256 = active0 - _amount0
-    new1: uint256 = active1 - _amount1
-    new_d: uint256 = self._compute_invariant(new0, new1, self.amp)
-    assert old_d > new_d, "INVARIANT"
-
-    base_shares: uint256 = self._ceil_div((old_d - new_d) * self.totalSupply, old_d)
+    shares_to_burn: uint256 = 0
+    penalty_shares: uint256 = 0
+    shares_to_burn, penalty_shares = self._quote_remove_imbalanced(_amount0, _amount1)
+    assert shares_to_burn <= _max_shares, "SLIPPAGE"
+    self._burn(msg.sender, shares_to_burn)
 
     if _amount0 > 0:
         self.reserve0 -= _amount0
     if _amount1 > 0:
         self.reserve1 -= _amount1
-
-    observed0: uint256 = self._active0()
-    observed1: uint256 = self._active1()
-    observed_d: uint256 = self._compute_invariant(observed0, observed1, self.amp)
-    penalty_shares: uint256 = self._withdrawal_penalty_from(
-        observed0,
-        observed1,
-        observed0,
-        observed1,
-        observed_d,
-        observed_d,
-        self.totalSupply,
-        self.imbalancePenaltyBps
-    )
-
-    shares_to_burn: uint256 = base_shares + penalty_shares
-    assert shares_to_burn <= _max_shares, "SLIPPAGE"
-    self._burn(msg.sender, shares_to_burn)
 
     if _amount0 > 0:
         ok0: bool = extcall ERC20(self.token0).transfer(_receiver, _amount0, default_return_value=True)
