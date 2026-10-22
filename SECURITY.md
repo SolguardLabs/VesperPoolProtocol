@@ -1,5 +1,12 @@
 # Política de seguridad de VesperPoolProtocol
 
+## Versiones mantenidas
+
+| Versión | Estado |
+| --- | --- |
+| `2.0.x` | Mantenida |
+| `1.0.x` | Histórica |
+
 ## Supuestos y límites
 
 El pool está diseñado para dos ERC-20 estándar, sin rebases, comisiones de transferencia ni hooks. Las reservas se expresan en unidades mínimas y el modelo presupone precisión compatible entre ambos activos. El oráculo local usa precios 1e18 y heartbeat configurado; una cotización caducada no debe utilizarse para la vista de estrés.
@@ -21,6 +28,8 @@ Las funciones mutables principales aplican protección contra reentrada y compru
 
 - `reserva activa = reserva registrada − comisión de protocolo` por token.
 - Las shares LP emitidas y quemadas corresponden a cambios admitidos de liquidez.
+- Los retiros por cesta usan un único snapshot de reservas y parámetros para
+  cotización, límite de shares, quema y transferencia.
 - Un swap respeta la salida mínima declarada por el usuario.
 - Una retirada respeta el máximo de shares y mínimos de activos.
 - Los balances físicos y las reservas pueden reconciliarse tras `sync`.

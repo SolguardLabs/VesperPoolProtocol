@@ -22,7 +22,7 @@ def test_imbalanced_remove_accepts_quoted_bound_and_transfers_requested_assets(d
 
     after0, after1 = token_balances(fx, fx.accounts.alice)
     assert quoted_penalty > 0
-    assert shares_used <= max_shares
+    assert shares_used == max_shares
     assert fx.pool.balanceOf(fx.accounts.alice) == before_shares - shares_used
     assert after0 == before0 + amount0
     assert after1 == before1 + amount1
